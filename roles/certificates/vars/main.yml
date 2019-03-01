@@ -1,0 +1,8 @@
+---
+
+account_key_path: /srv/ssl/account.key
+domain_key_path: /srv/ssl/{{ domain }}/{{ domain }}.key
+csr_path: /srv/ssl/{{ domain }}/{{ domain }}.csr
+crt_path: /srv/ssl/{{ domain }}/fullchain.crt
+challenge_http_dir: /srv/www/{{ domain }}/
+challenge_path: "{{ challenge['challenge_data'][domain]['http-01']['resource'] }}"

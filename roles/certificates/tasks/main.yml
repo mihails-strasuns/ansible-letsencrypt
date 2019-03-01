@@ -1,0 +1,73 @@
+---
+
+- name: Ensure Let's Encrypt account private key exists
+  copy:
+    src: le.key
+    dest: /srv/ssl/account.key
+
+- name: Ensure Let's Encrypt account exists
+  acme_account:
+    account_key_src: /srv/ssl/account.key
+    acme_directory: https://acme-v02.api.letsencrypt.org/directory
+    acme_version: 2
+    state: present
+    terms_agreed: yes
+    contact:
+    - mailto:{{ mail }}
+
+- name: Certificate directory for {{ domain }}
+  file: state=directory path=/srv/ssl/{{ domain }}
+
+- name: Generate private key for {{ domain }}
+  openssl_privatekey: path={{ domain_key_path }}
+
+- name: Generate CSR for {{ domain }}
+  openssl_csr:
+    path: "{{ csr_path }}"
+    privatekey_path: "{{ domain_key_path }}"
+    common_name: "{{ domain }}"
+
+- name: Create Let's Encrypt challenge for {{ domain }}
+  acme_certificate:
+    account_email: "ms@dlangsoft.com"
+    account_key_src: "{{ account_key_path }}"
+    csr: "{{ csr_path }}"
+    fullchain_dest: "{{ crt_path }}"
+    acme_directory: https://acme-v02.api.letsencrypt.org/directory
+    acme_version: 2
+  register: challenge
+
+- name: HTTP server directory for {{ domain }} challenge
+  file:
+    state: directory
+    path: "{{ challenge_http_dir }}/{{ challenge_path | dirname }}"
+    owner: www-data
+  when: challenge is changed
+
+- name: Copy Let's Encrypt challenge for {{ domain }} to web root
+  copy:
+    dest: "{{ challenge_http_dir }}/{{ challenge_path }}"
+    content: "{{ challenge['challenge_data'][domain]['http-01']['resource_value'] }}"
+  when: challenge is changed
+
+- name: Nginx configuration for {{ domain }} Let's Encrypt setup
+  template:
+    src: nginx.conf.j2
+    dest: "/etc/nginx/sites-enabled/{{ domain }}.le.conf"
+    owner: root
+  when: challenge is changed
+
+- name: Restart nginx
+  service: name=nginx state=restarted enabled=yes
+  when: challenge is changed
+
+- name: Validate Let's Encrypt challenge for {{ domain }}
+  acme_certificate:
+    account_email: "{{ mail }}"
+    account_key_src: "{{ account_key_path }}"
+    csr: "{{ csr_path }}"
+    fullchain_dest: "{{ crt_path }}"
+    data: "{{ challenge }}"
+    acme_directory: https://acme-v02.api.letsencrypt.org/directory
+    acme_version: 2
+    terms_agreed: yes

@@ -1,0 +1,10 @@
+---
+
+- name: "{{ domain }} certificates"
+  hosts: web
+  remote_user: root
+  roles:
+    - certificates
+  vars:
+    domain: example.com
+    mail: mail@example.com
